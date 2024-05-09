@@ -1,0 +1,6 @@
+client 				serveur
+	------Connexion------->
+
+	------Ma Premiere Socket ---->
+
+	<---------bien Recu -----
