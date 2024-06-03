@@ -1,0 +1,64 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+#include <semaphore.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+
+#define NUM_CHILDREN 4
+
+sem_t *sem_start;
+
+void handle_signal(int sig) {
+    printf("Child %d received signal %d\n", getpid(), sig);
+    sleep(1); // Simuler une tâche
+    kill(getppid(), SIGUSR2);
+}
+
+void parent_signal_handler(int sig) {
+    static int confirmations = 0;
+    confirmations++;
+    printf("Parent received confirmation %d\n", confirmations);
+
+    if (confirmations == NUM_CHILDREN) {
+        printf("All children have completed their tasks.\n");
+        sem_close(sem_start);
+        sem_unlink("/sem_start");
+        exit(0);
+    }
+}
+
+int main() {
+    pid_t pids[NUM_CHILDREN];
+    sem_start = sem_open("/sem_start", O_CREAT, 0644, 0);
+
+    for (int i = 0; i < NUM_CHILDREN; i++) {
+        pids[i] = fork();
+        if (pids[i] == 0) { // Processus fils
+            signal(SIGUSR1, handle_signal);
+            sem_wait(sem_start);
+            pause();
+            exit(0);
+        }
+    }
+
+    signal(SIGUSR2, parent_signal_handler);
+
+    for (int i = 0; i < NUM_CHILDREN; i++) {
+        sem_post(sem_start);
+    }
+
+    for (int i = 0; i < NUM_CHILDREN; i++) {
+        kill(pids[i], SIGUSR1);
+    }
+
+    for (int i = 0; i < NUM_CHILDREN; i++) {
+        wait(NULL);
+    }
+
+    sem_close(sem_start);
+    sem_unlink("/sem_start");
+
+    return 0;
+}
